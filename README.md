@@ -71,7 +71,9 @@ Now it’s time to check all the requests that we need to solve one by one.
 **Provide the list of markets in which customer "Atliq Exclusive" operates its business in the APAC region.**
 
 ```
-SELECT DISTINCT market FROM dim_customer WHERE customer = 'Atliq Exclusive' AND region = 'APAC';
+select distinct(market) as Market
+from dim_customer
+where customer = 'Atliq Exclusive' and region = 'APAC';
 ```
 ![image](Images/A.png)
 
@@ -84,11 +86,19 @@ SELECT DISTINCT market FROM dim_customer WHERE customer = 'Atliq Exclusive' AND 
  c) percentage_chg**
 
 ```
-SELECT 
-COUNT(DISTINCT CASE WHEN fiscal_year = 2020 THEN product_code END) AS unique_products_2020,
-COUNT(DISTINCT CASE WHEN fiscal_year = 2021 THEN product_code END) AS unique_products_2021,
-((COUNT(DISTINCT CASE WHEN fiscal_year = 2021 THEN product_code END) - COUNT(DISTINCT CASE WHEN fiscal_year = 2020 THEN product_code END)) / COUNT(DISTINCT CASE WHEN fiscal_year = 2020 THEN product_code END)) * 100 AS percentage_chg
-FROM fact_sales_monthly
+with unique_product as (
+select(select count(distinct product_code) 
+		from fact_sales_monthly
+		where fiscal_year = 2020) as 'unique_product_2020',
+	   (select count(distinct product_code) 
+		from fact_sales_monthly
+		where fiscal_year = 2021) as 'unique_product_2021'
+	   )
+       
+select unique_product_2020,
+	unique_product_2021,
+    round((unique_product_2021 - unique_product_2020)*100/unique_product_2020,1) percentage_chg
+from unique_product;
 ``` 
 ![image](Images/B.png)
 
@@ -99,7 +109,10 @@ a) segment
 b) product_count**
 
 ```
-SELECT segment, COUNT(DISTINCT product_code) as product_count FROM dim_product GROUP BY segment ORDER BY product_code DESC
+select segment, count(distinct product_code) as product_count
+from dim_product 
+group by segment
+order by count(distinct product_code) desc;
 ```
 ![image](Images/C.png)
 
@@ -112,9 +125,30 @@ c) product_count_2021
 d) difference**
 
 ```
-WITH merged_table AS (SELECT dim_product.*,fact_sales_monthly.fiscal_year FROM dim_product JOIN fact_sales_monthly ON dim_product.product_code = fact_sales_monthly.product_code), 
-unique_count_table AS (SELECT segment,fiscal_year,COUNT(DISTINCT product_code) as product_count FROM merged_table GROUP BY segment, fiscal_year), fiscal_year_count_table AS (SELECT segment,SUM(CASE WHEN fiscal_year = 2020 THEN product_count ELSE 0 END) as product_count_2020,SUM(CASE WHEN fiscal_year = 2021 THEN product_count ELSE 0 END) as product_count_2021
-FROM unique_count_table GROUP BY segment) SELECT segment,product_count_2020,product_count_2021,product_count_2021 - product_count_2020 as difference FROM fiscal_year_count_table
+with count2020 as(
+select p.segment, count(distinct q.product_code) as product_count_2020
+	   from fact_sales_monthly q
+       inner join dim_product p 
+       where q.fiscal_year = 2020
+       and q.product_code = p.product_code
+       group by p.segment),
+count2021 as(
+select p.segment, count(distinct q.product_code) as product_count_2021
+	   from fact_sales_monthly q
+       inner join dim_product p 
+       where q.fiscal_year = 2021
+       and q.product_code = p.product_code
+       group by p.segment)
+
+select c20.segment,
+       c20.product_count_2020,
+       c21.product_count_2021,
+       (c21.product_count_2021 - c20.product_count_2020) as difference,
+       round((c21.product_count_2021 - c20.product_count_2020)*100/c20.product_count_2020,2) as pct_difference
+from count2020 c20 
+inner join count2021 c21
+where c20.segment = c21.segment
+order by pct_difference desc;
 ```
 ![image](Images/D.png)
 
@@ -125,9 +159,24 @@ a) product_code
 b) product 
 c) manufacturing_cost**
 ```
-WITH merged_table AS (SELECT dim_product.product_code, dim_product.product, dim_product.variant, fact_manufacturing_cost.manufacturing_cost
-FROM dim_product JOIN fact_manufacturing_cost ON dim_product.product_code = fact_manufacturing_cost.product_code)
-SELECT * FROM merged_table WHERE manufacturing_cost = (SELECT MAX(manufacturing_cost) FROM merged_table) OR manufacturing_cost = (SELECT MIN(manufacturing_cost) FROM merged_table) ORDER BY manufacturing_cost DESC, product_code
+(select m.product_code,
+       p.product,
+       m.manufacturing_cost as manufaturing_cost
+from fact_manufacturing_cost m
+inner join dim_product p  
+where m.product_code = p.product_code
+order by manufacturing_cost desc
+limit 1)
+union
+(select m.product_code,
+       p.product,
+       m.manufacturing_cost
+from fact_manufacturing_cost m
+inner join dim_product p  
+where m.product_code = p.product_code
+order by manufacturing_cost
+limit 1
+);
 ```
 ![image](Images/E.png)
 
@@ -138,9 +187,16 @@ a) customer_code
 b) customer 
 c) average_discount_percentage**
 ```
-SELECT fact_pre_invoice_deductions.customer_code, dim_customer.customer, AVG(fact_pre_invoice_deductions.pre_invoice_discount_pct) AS average_discount_percentage
-FROM dim_customer INNER JOIN fact_pre_invoice_deductions ON dim_customer.customer_code = fact_pre_invoice_deductions.customer_code WHERE fact_pre_invoice_deductions.fiscal_year = '2021' AND dim_customer.market = 'India' GROUP BY fact_pre_invoice_deductions.customer_code, dim_customer.customer ORDER BY average_discount_percentage DESC
-LIMIT 5
+select i.customer_code,
+       c.customer,
+       i.pre_invoice_discount_pct
+from fact_pre_invoice_deductions i 
+inner join dim_customer c 
+where i.customer_code = c.customer_code
+and c.market = 'India'
+and i.fiscal_year = 2021
+order by i.pre_invoice_discount_pct desc
+limit 5;
 ```
 ![image](Images/F.png)
 
@@ -152,11 +208,17 @@ a) Month
 b) Year 
 c) Gross sales Amount**
 ```
-SELECT monthname(fact_sales_monthly.date) AS month,YEAR(fact_sales_monthly.date) year, SUM(fact_gross_price.gross_price * fact_sales_monthly.sold_quantity) gross_sales_amount 
-FROM fact_sales_monthly LEFT JOIN fact_gross_price ON fact_gross_price.product_code = fact_sales_monthly.product_code
-LEFT JOIN dim_customer ON dim_customer.customer_code = fact_sales_monthly.customer_code WHERE dim_customer.customer = "Atliq Exclusive"
-GROUP BY month, year 
-ORDER BY year, month
+select month(s.date) as month,
+       year(s.date) as year,
+       round(sum(p.gross_price*s.sold_quantity)/1000000,2) as gross_sales_amount
+from fact_gross_price p
+inner join fact_sales_monthly s
+inner join dim_customer c
+where p.product_code = s.product_code 
+and s.customer_code = c.customer_code
+and c.customer = 'Atliq Exclusive'
+group by year(s.date), month(s.date) 
+order by year(s.date), month(s.date);
 ```
 
 ![image](Images/G.png)
@@ -167,10 +229,18 @@ ORDER BY year, month
 a) (sorted by) total_sold_quantity
 b) Quarter**
 ```
-SELECT CONCAT(QUARTER(date), 'Q', YEAR(date)) AS Quarter, SUM(sold_quantity) AS Total_Sold_Quantity FROM fact_sales_monthly WHERE YEAR(date) = 2020
-GROUP BY QUARTER(date), YEAR(date)
-ORDER BY Total_Sold_Quantity DESC
-LIMIT 1;
+select 
+	case 
+		when month(date) in (9, 10, 11) then 'Q1'
+		when month(date) in (12, 1, 2) then 'Q2'
+		when month(date) in (3, 4, 5)  then 'Q3'
+		when month(date) in (6, 7, 8) then 'Q4'
+	end as Quarter,
+    sum(sold_quantity) as total_sold_quantity
+from fact_sales_monthly
+where fiscal_year = 2020
+group by Quarter
+order by sum(sold_quantity) desc;
 ```
 
 ![image](Images/H.png)
@@ -182,12 +252,20 @@ a) channel
 b) gross_sales_mln 
 c) percentage**
 ```
-WITH cte AS(SELECT dim_customer.channel channel,SUM(fact_sales_monthly.sold_quantity * fact_gross_price.gross_price) AS gross_sales_mln
-FROM fact_sales_monthly LEFT JOIN fact_gross_price ON fact_sales_monthly.product_code = fact_gross_price.product_code
-LEFT JOIN dim_customer ON fact_sales_monthly.customer_code = dim_customer.customer_code WHERE fact_sales_monthly.fiscal_year = 2021 GROUP BY dim_customer.channel)
-SELECT channel, gross_sales_mln, ROUND(gross_sales_mln*100/(SELECT SUM(gross_sales_mln) FROM cte),2)percentage FROM cte
-GROUP BY channel, gross_sales_mln 
-ORDER BY gross_sales_mln DESC
+with channels_gross as 
+(
+select c.channel as channel, 
+       round(sum(g.gross_price*s.sold_quantity)/1000000, 2) as gross_sales_mln
+from dim_customer c inner join fact_sales_monthly s inner join fact_gross_price g
+where c.customer_code = s.customer_code
+and s.product_code = g.product_code
+and s.fiscal_year = g.fiscal_year
+and s.fiscal_year = 2021
+group by channel)
+
+select channel, gross_sales_mln, round((gross_sales_mln/(select sum(gross_sales_mln) from channels_gross)*100),2) as Percentage
+from channels_gross
+order by gross_sales_mln desc;
 ```
 ![image](Images/I.png)
 
@@ -201,13 +279,108 @@ c) product
 d) total_sold_quantity 
 e) rank_order**
 ```
-WITH merged_data AS (SELECT dim_product.division, dim_product.product_code, dim_product.product, fact_sales_monthly.sold_quantity, fact_sales_monthly.fiscal_year
-FROM dim_product INNER JOIN fact_sales_monthly ON dim_product.product_code = fact_sales_monthly.product_code),
-aggregated_data AS (SELECT division, MAX(Total_Sold_Quantity) AS Max_Total_Sold_Quantity FROM (SELECT product_code, product, division, fiscal_year, 
-SUM(sold_quantity) AS Total_Sold_Quantity FROM merged_data WHERE fiscal_year = 2021 GROUP BY product_code, product, division, fiscal_year) subquery GROUP BY division), ranked_data AS (SELECT division, product_code, product, fiscal_year, Total_Sold_Quantity, ROW_NUMBER() OVER (ORDER BY Total_Sold_Quantity DESC) AS rank_order
-FROM (SELECT division, product_code, product, fiscal_year, Total_Sold_Quantity FROM (SELECT product_code, product, division, fiscal_year, 
-SUM(sold_quantity) AS Total_Sold_Quantity FROM merged_data WHERE fiscal_year = 2021 GROUP BY product_code, product, division, fiscal_year) subquery
-WHERE Total_Sold_Quantity = (SELECT Max_Total_Sold_Quantity FROM aggregated_data WHERE division = subquery.division)) subquery2) 
-SELECT division, product_code, product, fiscal_year, Total_Sold_Quantity, rank_order FROM ranked_data
+with cte1 as (
+
+select p.division as division, 
+       p.product  as product, 
+       s.product_code as product_code, 
+       sum(s.sold_quantity) as total_sold_quantity
+from fact_sales_monthly s inner join dim_product p
+where s.product_code = p.product_code
+and s.fiscal_year = 2021
+group by p.division, p.product),
+
+
+cte2 as (
+select division, product_code, product, category, total_sold_quantity,
+       rank() over(partition by division order by total_sold_quantity desc) as rank_order
+from cte1)
+
+select * from cte2
+where rank_order <= 3;
+
+-- Sales by Market
+select c.market as market,
+       month(s.date) as month,
+       year(s.date) as year,
+       round(sum(p.gross_price*s.sold_quantity)/1000000,2) as gross_sales_amount
+from fact_gross_price p
+inner join fact_sales_monthly s
+inner join dim_customer c
+where p.product_code = s.product_code 
+and s.customer_code = c.customer_code
+and c.market = 'India'
+group by c.market, year(s.date), month(s.date) 
+order by c.market, year(s.date), month(s.date) 
+;
+
+-- Sold Quantity by Market
+select c.market as market,
+       month(s.date) as month,
+       year(s.date) as date,
+       sum(s.sold_quantity) as sold_quantity,
+       s.fiscal_year as fiscal_year
+from fact_sales_monthly s
+inner join dim_customer c
+where s.customer_code = c.customer_code
+and c.market = 'India'
+group by c.market, year(s.date), month(s.date)
+;
+
+-- Sold Quantity by Segment
+select p.segment as Segment,
+       month(s.date) as month,
+       year(s.date) as year,
+       sum(s.sold_quantity) as sold_quantity,
+       s.fiscal_year as fiscal_year
+from fact_sales_monthly s
+inner join dim_product p
+where s.product_code = p.product_code
+and p.segment = 'Accessories'
+group by p.segment, year(s.date), month(s.date)
+;
+
+-- Manufacturing cost by segment
+select p.segment,
+	   month(s.date) as month,
+       year(s.date) as date,
+       round(sum(m.manufacturing_cost*s.sold_quantity)/1000000,2) as manufacturing_cost
+from fact_manufacturing_cost m
+inner join fact_sales_monthly s
+inner join dim_product p  
+where m.product_code = p.product_code
+and s.product_code = p.product_code
+and m.cost_year = s.fiscal_year
+and p.segment = 'Notebook'
+group by p.segment, year(s.date), month(s.date);
+
+-- Manufacturing cost by year
+
+select month(s.date) as month,
+       year(s.date) as year,
+       round(sum(m.manufacturing_cost*s.sold_quantity)/1000000,2) as manufacturing_cost
+from fact_manufacturing_cost m 
+inner join fact_sales_monthly s
+inner join dim_product p 
+where m.product_code = p.product_code 
+and s.product_code = p.product_code 
+and m.cost_year = s.fiscal_year
+group by year(s.date), month(s.date) 
+order by year(s.date), month(s.date) 
+;
+
+-- Year wise gross amount and sold quantity
+select month(s.date) as month,
+       year(s.date) as year,
+       sum(s.sold_quantity) as sold_quantity,
+       round(sum(p.gross_price*s.sold_quantity)/1000000,2) as gross_sales_amount
+from fact_gross_price p
+inner join fact_sales_monthly s
+inner join dim_customer c
+where p.product_code = s.product_code 
+and s.customer_code = c.customer_code
+group by year(s.date), month(s.date) 
+order by year(s.date), month(s.date) 
+;
 ```
 ![image](Images/J.png)
