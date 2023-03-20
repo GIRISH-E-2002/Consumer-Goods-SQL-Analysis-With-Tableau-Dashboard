@@ -25,8 +25,6 @@ Let’s be more precise about the requirements for this project through the foll
 
 
 
-![image](Images/Dashboard_design.png)
-
 
 
 ##  About the database schema:
@@ -212,3 +210,4 @@ SUM(sold_quantity) AS Total_Sold_Quantity FROM merged_data WHERE fiscal_year = 2
 WHERE Total_Sold_Quantity = (SELECT Max_Total_Sold_Quantity FROM aggregated_data WHERE division = subquery.division)) subquery2) 
 SELECT division, product_code, product, fiscal_year, Total_Sold_Quantity, rank_order FROM ranked_data
 ```
+![image](Images/J.png)
