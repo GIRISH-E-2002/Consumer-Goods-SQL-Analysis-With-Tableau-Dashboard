@@ -25,8 +25,6 @@ Let’s be more precise about the requirements for this project through the foll
 
 
 
-![image](Images/Dashboard_design.png)
-
 
 
 ##  About the database schema:
