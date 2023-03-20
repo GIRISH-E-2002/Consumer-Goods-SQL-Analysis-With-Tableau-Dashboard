@@ -75,7 +75,7 @@ Now it’s time to check all the requests that we need to solve one by one.
 ```
 SELECT DISTINCT market FROM dim_customer WHERE customer = 'Atliq Exclusive' AND region = 'APAC';
 ```
-![q1](https://user-images.githubusercontent.com/102472369/221028776-7ed8e679-d6e5-49c4-8974-dc132c17fed6.PNG)
+![image](Images/A.png)
 
 
 ## Question 2.
@@ -92,7 +92,7 @@ COUNT(DISTINCT CASE WHEN fiscal_year = 2021 THEN product_code END) AS unique_pro
 ((COUNT(DISTINCT CASE WHEN fiscal_year = 2021 THEN product_code END) - COUNT(DISTINCT CASE WHEN fiscal_year = 2020 THEN product_code END)) / COUNT(DISTINCT CASE WHEN fiscal_year = 2020 THEN product_code END)) * 100 AS percentage_chg
 FROM fact_sales_monthly
 ``` 
-![q2](https://user-images.githubusercontent.com/102472369/221028832-8369ea32-2a67-4e41-ac88-7f1ddb31b04d.PNG)
+![image](Images/B.png)
 
 ## Question 3.
 **Provide a report with all the unique product counts for each segment and sort them in descending order of product counts.
@@ -103,7 +103,7 @@ b) product_count**
 ```
 SELECT segment, COUNT(DISTINCT product_code) as product_count FROM dim_product GROUP BY segment ORDER BY product_code DESC
 ```
-![q3](https://user-images.githubusercontent.com/102472369/221028897-503f5d56-710d-4e16-819e-35f607e65d67.PNG)
+![image](Images/C.png)
 
 ## Question 4.
 
@@ -118,7 +118,7 @@ WITH merged_table AS (SELECT dim_product.*,fact_sales_monthly.fiscal_year FROM d
 unique_count_table AS (SELECT segment,fiscal_year,COUNT(DISTINCT product_code) as product_count FROM merged_table GROUP BY segment, fiscal_year), fiscal_year_count_table AS (SELECT segment,SUM(CASE WHEN fiscal_year = 2020 THEN product_count ELSE 0 END) as product_count_2020,SUM(CASE WHEN fiscal_year = 2021 THEN product_count ELSE 0 END) as product_count_2021
 FROM unique_count_table GROUP BY segment) SELECT segment,product_count_2020,product_count_2021,product_count_2021 - product_count_2020 as difference FROM fiscal_year_count_table
 ```
-![x](https://user-images.githubusercontent.com/102472369/221028962-5b3e418a-e176-4f2e-94a0-ae2f2b99da6c.PNG)
+![image](Images/D.png)
 
 ## Question 5.
 
@@ -131,7 +131,7 @@ WITH merged_table AS (SELECT dim_product.product_code, dim_product.product, dim_
 FROM dim_product JOIN fact_manufacturing_cost ON dim_product.product_code = fact_manufacturing_cost.product_code)
 SELECT * FROM merged_table WHERE manufacturing_cost = (SELECT MAX(manufacturing_cost) FROM merged_table) OR manufacturing_cost = (SELECT MIN(manufacturing_cost) FROM merged_table) ORDER BY manufacturing_cost DESC, product_code
 ```
-![q5](https://user-images.githubusercontent.com/102472369/221029063-ee032aa3-d800-4b88-952b-43bae276dc96.png)
+![image](Images/E.png)
 
 ## Question 6.
 
@@ -144,7 +144,7 @@ SELECT fact_pre_invoice_deductions.customer_code, dim_customer.customer, AVG(fac
 FROM dim_customer INNER JOIN fact_pre_invoice_deductions ON dim_customer.customer_code = fact_pre_invoice_deductions.customer_code WHERE fact_pre_invoice_deductions.fiscal_year = '2021' AND dim_customer.market = 'India' GROUP BY fact_pre_invoice_deductions.customer_code, dim_customer.customer ORDER BY average_discount_percentage DESC
 LIMIT 5
 ```
-![q6](https://user-images.githubusercontent.com/102472369/221029211-b4ce984f-3ff2-4019-b035-f388c90165e8.png)
+![image](Images/F.png)
 
 
 ## Question 7.
@@ -161,7 +161,7 @@ GROUP BY month, year
 ORDER BY year, month
 ```
 
-![q7](https://user-images.githubusercontent.com/102472369/221029267-99f8feda-fa04-4c14-a7d3-8c81a12c7f9e.PNG)
+![image](Images/G.png)
 
 ## Question 8.
 
@@ -175,7 +175,7 @@ ORDER BY Total_Sold_Quantity DESC
 LIMIT 1;
 ```
 
-![q8](https://user-images.githubusercontent.com/102472369/221029316-e5c011b6-6337-4beb-9594-84b86138c10c.PNG)
+![image](Images/H.png)
 
 ## Question 9.
 
@@ -191,7 +191,7 @@ SELECT channel, gross_sales_mln, ROUND(gross_sales_mln*100/(SELECT SUM(gross_sal
 GROUP BY channel, gross_sales_mln 
 ORDER BY gross_sales_mln DESC
 ```
-![q9](https://user-images.githubusercontent.com/102472369/221029368-a35c3810-15d0-4e38-b7e8-2630a70cb88a.PNG)
+![image](Images/I.png)
 
 
 ## Question 10.
